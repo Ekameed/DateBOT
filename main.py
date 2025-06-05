@@ -1,3 +1,5 @@
+from flask import Flask, request, render_template_string
+import threading
 import time
 import telebot
 from telebot.types import (
@@ -12,6 +14,7 @@ ADMIN_USER_ID = [7592464127, 5022283560]
 WELCOME_IMAGE_URL = 'https://i.ibb.co/CK5D69LC/MMJABGQTIHLELKL.jpg'
 
 bot = telebot.TeleBot(API_TOKEN)
+app = Flask(__name__)
 
 waiting_users = set()
 active_chats = {}
@@ -286,6 +289,34 @@ def handle_messages(message):
                 handle_disconnect(message)
     else:
         bot.send_message(user_id, "❗ Click 'Find Match' to start chatting.", reply_markup=get_main_markup())
+@app.route("/", methods=["GET", "POST"])
+def admin_panel():
+    if request.method == "POST":
+        msg = request.form.get("message", "")
+        sent, failed = 0, 0
+        for uid in known_users:
+            try:
+                bot.send_message(uid, f"📢 {msg}")
+                sent += 1
+            except:
+                failed += 1
+        return f"<h3>Sent: {sent} | Failed: {failed}</h3><a href='/'>Back</a>"
+
+    return render_template_string("""
+    <h1>Bot Stats</h1>
+    <p>Total users: {{total_users}}</p>
+    <p>Total reports: {{total_reports}}</p>
+    <form method="post">
+      <textarea name="message" rows="4"></textarea><br>
+      <button>Broadcast</button>
+    </form>
+    """, total_users=len(known_users), total_reports=len(reports))
 
 print("Bot started!")
-bot.polling()
+def run_bot():
+    bot.infinity_polling()
+
+if __name__ == "__main__":
+    threading.Thread(target=run_bot).start()
+    app.run(host="0.0.0.0", port=8080)
+
