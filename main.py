@@ -155,7 +155,7 @@ def handle_callback(call):
 
     elif call.data in ['about', 'privacy', 'terms']:
         text_map = {
-            'about': "<b>Developer:</b> <a href='https://t.me/EK4mpreetsingh'>EK4mpreetsingh</a>\nBot Name: Date bot🌹",
+            'about': "<b>Developer:</b> <a href='https://t.me/EK4mpreetsingh'>EK4mpreetsingh</a>\nBot Name: Date bot🌹\nServer: Personal",
             'privacy': "📜 <b>Privacy Policy</b>\n\nWe do not store your messages. All chats are anonymous and temporary.",
             'terms': "📜 <b>Terms of Service</b>\n\nBy using this bot, you agree not to abuse or harass other users."
         }
