@@ -22,28 +22,38 @@ db = client.botdb
 config = db.config.find_one() or {}
 
 def save_data():
-    db.config.update_one({}, {"$set": {
-        "known_users": list(known_users),
-        "waiting_users": list(waiting_users),
-        "active_chats": active_chats,
-        "user_states": user_states,
-        "reports": reports,
-        "last_message_time": last_message_time,
-        "welcome_message_ids": welcome_message_ids,
-        "maintenance_mode": maintenance_mode
-    }}, upsert=True)
+    try:
+        db.config.update_one({}, {"$set": {
+            "known_users": list(known_users),
+            "waiting_users": list(waiting_users),
+            "active_chats": active_chats,
+            "user_states": user_states,
+            "reports": reports,
+            "last_message_time": last_message_time,
+            # convert int keys to str for MongoDB compatibility
+            "welcome_message_ids": {str(k): v for k, v in welcome_message_ids.items()},
+            "maintenance_mode": maintenance_mode
+        }}, upsert=True)
+        print("✅ Data saved to MongoDB.")
+    except Exception as e:
+        print(f"❌ Error saving to MongoDB: {e}")
 
 def load_data():
     global known_users, waiting_users, active_chats, user_states, reports, last_message_time, welcome_message_ids, maintenance_mode
-    data = db.config.find_one() or {}
-    known_users = set(data.get("known_users", []))
-    waiting_users = set(data.get("waiting_users", []))
-    active_chats = data.get("active_chats", {})
-    user_states = data.get("user_states", {})
-    reports = data.get("reports", [])
-    last_message_time = data.get("last_message_time", {})
-    welcome_message_ids = data.get("welcome_message_ids", {})
-    maintenance_mode = data.get("maintenance_mode", False)
+    try:
+        data = db.config.find_one() or {}
+        known_users = set(data.get("known_users", []))
+        waiting_users = set(data.get("waiting_users", []))
+        active_chats = data.get("active_chats", {})
+        user_states = data.get("user_states", {})
+        reports = data.get("reports", [])
+        last_message_time = data.get("last_message_time", {})
+        # convert string keys back to int
+        welcome_message_ids = {int(k): v for k, v in data.get("welcome_message_ids", {}).items()}
+        maintenance_mode = data.get("maintenance_mode", False)
+        print("✅ Bot state loaded from MongoDB.")
+    except Exception as e:
+        print(f"❌ Error loading from MongoDB: {e}")
 
 load_data()
 
