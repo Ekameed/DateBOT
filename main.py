@@ -139,7 +139,7 @@ def handle_callback(call):
         markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Back", callback_data='back'))
         bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text[call.data], reply_markup=markup, parse_mode='HTML')
 
-    elif call.data == 'back':
+elif call.data == 'back':
     caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
     markup = InlineKeyboardMarkup()
     markup.add(
@@ -153,6 +153,7 @@ def handle_callback(call):
         message_id=msg_id,
         reply_markup=markup
     )
+
 
 @bot.message_handler(func=lambda msg: msg.text == '🔎Find Match')
 def find_match(message):
