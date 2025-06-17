@@ -140,7 +140,19 @@ def handle_callback(call):
         bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text[call.data], reply_markup=markup, parse_mode='HTML')
 
     elif call.data == 'back':
-        send_welcome(user_id)
+    caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("ℹ️ About", callback_data='about'),
+        InlineKeyboardButton("📜 Privacy", callback_data='privacy'),
+        InlineKeyboardButton("📜 Terms", callback_data='terms')
+    )
+    bot.edit_message_media(
+        media=InputMediaPhoto(WELCOME_IMAGE_URL, caption=caption, parse_mode='HTML'),
+        chat_id=chat_id,
+        message_id=msg_id,
+        reply_markup=markup
+    )
 
 @bot.message_handler(func=lambda msg: msg.text == '🔎Find Match')
 def find_match(message):
