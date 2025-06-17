@@ -137,7 +137,7 @@ def handle_callback(call):
             'terms': "📜 <b>Terms of Service</b>\nDon't abuse or harass users."
         }
         markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Back", callback_data='back'))
-        bot.edit_message_caption(chat_id, msg_id, caption=text[call.data], reply_markup=markup, parse_mode='HTML')
+        bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text[call.data], reply_markup=markup, parse_mode='HTML')
 
     elif call.data == 'back':
         send_welcome(user_id)
