@@ -106,15 +106,17 @@ def handle_start(message):
 
 def send_welcome(user_id):
     caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
+
     markup = InlineKeyboardMarkup()
-markup.add(
-    InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
-    InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
-)
-markup.add(
-    InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
-    InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
-)
+    markup.add(
+        InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
+        InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
+    )
+    markup.add(
+        InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
+        InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
+    )
+
     msg = bot.send_photo(user_id, WELCOME_IMAGE_URL, caption=caption, reply_markup=markup)
     welcome_message_ids[user_id] = msg.message_id
     bot.send_message(user_id, "👇 Use the buttons below to get started.", reply_markup=get_main_markup())
@@ -143,23 +145,22 @@ def handle_callback(call):
         bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text[call.data], reply_markup=markup, parse_mode='HTML')
 
     elif call.data == 'back':
-        caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
-        markup = InlineKeyboardMarkup()
-markup.add(
-    InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
-    InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
-)
-markup.add(
-    InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
-    InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
-)
-        bot.edit_message_media(
-            media=InputMediaPhoto(WELCOME_IMAGE_URL, caption=caption, parse_mode='HTML'),
-            chat_id=chat_id,
-            message_id=msg_id,
-            reply_markup=markup
-        )
-
+    caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
+        InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
+    )
+    markup.add(
+        InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
+        InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
+    )
+    bot.edit_message_media(
+        media=InputMediaPhoto(WELCOME_IMAGE_URL, caption=caption, parse_mode='HTML'),
+        chat_id=chat_id,
+        message_id=msg_id,
+        reply_markup=markup
+    )
 
 @bot.message_handler(func=lambda msg: msg.text == '🔎Find Match')
 def find_match(message):
