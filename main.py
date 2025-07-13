@@ -106,17 +106,15 @@ def handle_start(message):
 
 def send_welcome(user_id):
     caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
-    markup = InlineKeyboardMarkup()
+markup = InlineKeyboardMarkup()
 markup.add(
-    (
-        InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
-        InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
-    ),
-    (
-        InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
-        InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
-    )
-        )
+    InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
+    InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
+)
+markup.add(
+    InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
+    InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
+)
     msg = bot.send_photo(user_id, WELCOME_IMAGE_URL, caption=caption, reply_markup=markup)
     welcome_message_ids[user_id] = msg.message_id
     bot.send_message(user_id, "👇 Use the buttons below to get started.", reply_markup=get_main_markup())
