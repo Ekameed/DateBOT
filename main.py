@@ -8,7 +8,7 @@ import os
 
 # === CONFIGURATION ===
 API_TOKEN = '8014049142:AAEj1gO3tD-HFrzc5gXrrNaNbCmGhJ4Vfb8'
-CHANNEL_USERNAME = '@gsjdndnejdn'
+CHANNEL_USERNAME = '@crave_central'
 ADMIN_USER_ID = [7592464127, 5022283560]
 WELCOME_IMAGE_URL = 'https://i.ibb.co/CK5D69LC/MMJABGQTIHLELKL.jpg'
 MONGO_URI = 'mongodb+srv://DATEBOT:DATEBOT@cluster0.817ghth.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'
@@ -107,11 +107,16 @@ def handle_start(message):
 def send_welcome(user_id):
     caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
     markup = InlineKeyboardMarkup()
-    markup.add(
-        InlineKeyboardButton("ℹ️ About", callback_data='about'),
-        InlineKeyboardButton("📜 Privacy", callback_data='privacy'),
-        InlineKeyboardButton("📜 Terms", callback_data='terms')
+markup.add(
+    (
+        InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
+        InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
+    ),
+    (
+        InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
+        InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
     )
+        )
     msg = bot.send_photo(user_id, WELCOME_IMAGE_URL, caption=caption, reply_markup=markup)
     welcome_message_ids[user_id] = msg.message_id
     bot.send_message(user_id, "👇 Use the buttons below to get started.", reply_markup=get_main_markup())
@@ -132,7 +137,7 @@ def handle_callback(call):
 
     elif call.data in ['about', 'privacy', 'terms']:
         text = {
-            'about': "<b>Developer:</b> <a href='https://t.me/EK4mpreetsingh'>EK4mpreetsingh</a>\nBot Name: Date bot🌹",
+            'about': "<blockquote>☆ ᴅᴇᴠᴇʟᴏᴘʀᴇʀ: <a href='https://t.me/EK4mpreetsingh'>Eᴋᴀᴍᴘʀᴇᴇᴛ Sɪɴɢʜ</a>\n☆ ʙᴏᴛ ɴᴀᴍᴇ: Date bot\n☆ sᴜᴘᴘᴏʀᴛ: <a href='https://t.me/EK4mpreetsingh'>ᴄʟɪᴄᴋ ʜᴇʀᴇ</a></blockquote>",
             'privacy': "📜 <b>Privacy Policy</b>\nWe do not store your messages.",
             'terms': "📜 <b>Terms of Service</b>\nDon't abuse or harass users."
         }
