@@ -106,7 +106,7 @@ def handle_start(message):
 
 def send_welcome(user_id):
     caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
-markup = InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup()
 markup.add(
     InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
     InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
