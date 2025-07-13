@@ -145,11 +145,14 @@ def handle_callback(call):
     elif call.data == 'back':
         caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
         markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("ℹ️ About", callback_data='about'),
-            InlineKeyboardButton("📜 Privacy", callback_data='privacy'),
-            InlineKeyboardButton("📜 Terms", callback_data='terms')
-        )
+markup.add(
+    InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
+    InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
+)
+markup.add(
+    InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
+    InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
+)
         bot.edit_message_media(
             media=InputMediaPhoto(WELCOME_IMAGE_URL, caption=caption, parse_mode='HTML'),
             chat_id=chat_id,
