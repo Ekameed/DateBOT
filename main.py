@@ -11,7 +11,7 @@ from flask import Flask
 import threading
 
 # === CONFIG ===
-API_TOKEN = "8328091240:AAFuCooUWJsIdZxhtc5PYiP36_q4gUzL1ec"
+API_TOKEN = "8328091240:AAGvUcbWtHivdlUSkyJRhdkvSsFba2lWErQ"
 OWNER_LOG_CHANNEL = -1003007132537  # private channel for logging
 
 CHANNELS = [
