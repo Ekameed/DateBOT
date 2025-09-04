@@ -1,4 +1,5 @@
-Flask
-pyTelegramBotAPI
-pymongo
-dnspython
+pyTelegramBotAPI==4.23.0
+telethon==1.36.0
+pyrogram==2.0.106
+TgCrypto==1.2.5
+Flask==3.0.3
