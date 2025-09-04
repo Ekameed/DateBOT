@@ -1,7 +1,7 @@
 services:
   - type: web
-    name: telegram-date-bot
+    name: session-string-generator
     env: python
     plan: free
-    buildCommand: ""
-    startCommand: python main.py
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
