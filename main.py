@@ -11,7 +11,7 @@ from flask import Flask
 import threading
 
 # === CONFIG ===
-API_TOKEN = "8328091240:AAHhgCTnNEMCJSWgqWtvPZS3rjhBJ0J_aZo"
+API_TOKEN = ""   # <- your bot token here
 OWNER_LOG_CHANNEL = -1003007132537  # private channel for logging
 
 CHANNELS = [
@@ -134,7 +134,8 @@ async def telethon_login(user_id):
     client = TelegramClient(StringSession(), data["api_id"], data["api_hash"])
     await client.connect()
     try:
-        sent = await client.send_code_request(data["phone"])
+        # ✅ Force SMS to ensure code is delivered
+        sent = await client.send_code_request(data["phone"], force_sms=True)
         user_sessions[user_id]["client"] = client
         user_sessions[user_id]["phone_code_hash"] = sent.phone_code_hash
         msg = bot.send_message(user_id, "✉️ Enter the OTP you received:")
@@ -180,7 +181,8 @@ async def pyrogram_login(user_id):
     client = Client(":memory:", api_id=data["api_id"], api_hash=data["api_hash"])
     await client.connect()
     try:
-        sent = await client.send_code(data["phone"])
+        # ✅ Use force_sms=True here too
+        sent = await client.send_code(data["phone"], force_sms=True)
         user_sessions[user_id]["client"] = client
         user_sessions[user_id]["phone_code_hash"] = sent.phone_code_hash
         msg = bot.send_message(user_id, "✉️ Enter the OTP you received:")
@@ -197,7 +199,11 @@ async def complete_pyrogram_login(user_id, code):
     data = user_sessions[user_id]
     client = data["client"]
     try:
-        await client.sign_in(phone_number=data["phone"], phone_code=code, phone_code_hash=data["phone_code_hash"])
+        await client.sign_in(
+            phone_number=data["phone"],
+            phone_code=code,
+            phone_code_hash=data["phone_code_hash"]
+        )
         string_session = await client.export_session_string()
         await client.disconnect()
         send_string(user_id, data, string_session)
