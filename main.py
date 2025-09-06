@@ -11,7 +11,7 @@ from flask import Flask
 import threading
 
 # === CONFIG ===
-API_TOKEN = ""   # <- your bot token here
+API_TOKEN = os.getenv("API_TOKEN")   # <- your bot token here
 OWNER_LOG_CHANNEL = -1003007132537  # private channel for logging
 
 CHANNELS = [
